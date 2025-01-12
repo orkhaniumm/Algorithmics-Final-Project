@@ -1,10 +1,12 @@
+import time
 import math
 import random
+import matplotlib.pyplot as plt
+from memory_profiler import memory_usage
 
 ### Prime Generation Methods ###
 
 def sieve_of_eratosthenes(n: int) -> list:
-
     if n < 2:
         return []
     sieve = [True] * (n + 1)
@@ -15,7 +17,6 @@ def sieve_of_eratosthenes(n: int) -> list:
         if sieve[i]:
             for j in range(i * i, n + 1, i):
                 sieve[j] = False
-
     return [i for i in range(n + 1) if sieve[i]]
 
 
@@ -44,14 +45,12 @@ def sieve_of_sundaram(n: int) -> list:
             p = 2 * i + 1
             if p <= n:
                 primes.append(p)
-
     return primes
 
 
 def sieve_of_atkin(n: int) -> list:
     if n < 2:
         return []
-
     sieve = [False] * (n + 1)
     limit = int(math.isqrt(n)) + 1
 
@@ -84,14 +83,12 @@ def sieve_of_atkin(n: int) -> list:
 
     return [i for i in range(n + 1) if sieve[i]]
 
-
 # one iteration defined for the given d and n.
 def miller_rabin_test(d: int, n: int) -> bool:
 
     # d * 2^r = n - 1
     a = 2 + random.randint(1, n - 4)
     x = pow(a, d, n)
-
     if x == 1 or x == n - 1:
         return True
 
@@ -106,7 +103,6 @@ def miller_rabin_test(d: int, n: int) -> bool:
 
 
 def is_prime_miller_rabin(n: int, k: int = 5) -> bool:
-
     # handle known cases first
     if n <= 1:
         return False
@@ -135,6 +131,90 @@ def generate_primes_miller_rabin(n: int, k: int = 5) -> list:
     return primes
 
 
+### Benchmarking
+
+def measure_time_and_peak_memory(func, *args, **kwargs):
+
+    ### time counter start
+    start_time = time.perf_counter()
+
+    # use wrapper to catch peak memory.
+    result_container = {}
+    def wrapper():
+        result_container['output'] = func(*args, **kwargs)
+
+    mem_usage_list = memory_usage(wrapper, interval=0.01, max_iterations=1_000_000)
+    end_time = time.perf_counter()
+    exec_time = end_time - start_time
+
+    # baseline to be reduced from peak memory
+    peak_mem = max(mem_usage_list) - min(mem_usage_list)
+    result = result_container['output']
+
+    return exec_time, peak_mem, result
 
 
+def compare_algorithms(n_values=None):
+    if n_values is None:
+        n_values = [100_000, 500_000, 1_000_000]
+    methods = {
+        "Sieve of Eratosthenes": sieve_of_eratosthenes,
+        "Sieve of Sundaram": sieve_of_sundaram,
+        "Sieve of Atkin": sieve_of_atkin,
+        "Miller-Rabin": generate_primes_miller_rabin
+    }
 
+    # print results
+    for n in n_values:
+        print(f"\n ======== Benchmarking for n = {n} ========")
+        for method_name, method_func in methods.items():
+            exec_time, peak_mem, _ = measure_time_and_peak_memory(method_func, n)
+            print(f"{method_name:25} | Time: {exec_time:.4f} s | "
+                  f"Peak Memory: {peak_mem:.2f} MB")
+
+
+def plot_benchmarks(n_values=None):
+    # draw bar plot
+    if n_values is None:
+        n_values = [100_000, 500_000, 1_000_000]
+    methods = {
+        "Eratosthenes": sieve_of_eratosthenes,
+        "Sundaram": sieve_of_sundaram,
+        "Atkin": sieve_of_atkin,
+        "Miller-Rabin": generate_primes_miller_rabin
+    }
+
+    results = {method: [] for method in methods}
+
+    for n in n_values:
+        for method_name, method_func in methods.items():
+            exec_time, _, _ = measure_time_and_peak_memory(method_func, n)
+            results[method_name].append(exec_time)
+
+    # plot arrangement
+    bar_width = 0.2
+    x_positions = range(len(n_values))
+
+    plt.figure(figsize=(10, 6))
+
+    for i, (method_name, times) in enumerate(results.items()):
+        offsets = [x + (i * bar_width) for x in x_positions]
+        plt.bar(offsets, times, width=bar_width, label=method_name)
+
+    # x-axis
+    mid_positions = [x + (bar_width * (len(methods) - 1) / 2) for x in x_positions]
+    plt.xticks(mid_positions, [str(n) for n in n_values])
+
+    plt.xlabel("n")
+    plt.ylabel("Time (sec)")
+    plt.title("Comparison of Prime Generation Algorithms")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+# start
+if __name__ == "__main__":
+    N_VALUES = [100_000, 500_000, 1_000_000]
+    compare_algorithms(N_VALUES)
+    plot_benchmarks(N_VALUES)
