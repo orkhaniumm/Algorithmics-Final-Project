@@ -131,6 +131,24 @@ def generate_primes_miller_rabin(n: int, k: int = 5) -> list:
     return primes
 
 
+# simple trial division method - straightforward but slow
+def trial_division(n: int) -> list:
+    if n < 2:
+        return []
+    primes = []
+    for num in range(2, n+1):
+        # check divisibility
+        root = int(math.isqrt(num))
+        is_prime = True
+        for p in range(2, root + 1):
+            if num % p == 0:
+                is_prime = False
+                break
+        if is_prime:
+            primes.append(num)
+    return primes
+
+
 ### Benchmarking
 
 def measure_time_and_peak_memory(func, *args, **kwargs):
@@ -156,13 +174,19 @@ def measure_time_and_peak_memory(func, *args, **kwargs):
 
 def compare_algorithms(n_values=None):
     if n_values is None:
-        n_values = [100_000, 500_000, 1_000_000]
+        n_values = [100_000, 500_000, 1_000_000, 5_000_000]
+
     methods = {
         "Sieve of Eratosthenes": sieve_of_eratosthenes,
         "Sieve of Sundaram": sieve_of_sundaram,
         "Sieve of Atkin": sieve_of_atkin,
-        "Miller-Rabin": generate_primes_miller_rabin
+        "Miller-Rabin": generate_primes_miller_rabin,
+        "Trial Division": trial_division
     }
+
+    # distinct tables to be used
+    time_table = {method: {} for method in methods}
+    memory_table = {method: {} for method in methods}
 
     # print results
     for n in n_values:
@@ -172,32 +196,93 @@ def compare_algorithms(n_values=None):
             print(f"{method_name:25} | Time: {exec_time:.4f} s | "
                   f"Peak Memory: {peak_mem:.2f} MB")
 
+            time_table[method_name][n] = exec_time
+            memory_table[method_name][n] = peak_mem
+
+    # display summary tables
+    display_summary_tables(time_table, memory_table, n_values)
+
+
+def display_summary_tables(time_table, memory_table, n_values):
+    # time part
+    fig_time, ax_time = plt.subplots(figsize=(7, 3))
+    ax_time.axis("off")
+
+    header_time = ["Method"] + ["n = " + str(n) for n in n_values]
+    table_data_time = [header_time]
+
+    for method in time_table.keys():
+        row = [method]
+        for n in n_values:
+            row.append(f"{time_table[method][n]:.4f}")
+        table_data_time.append(row)
+
+    # create the table
+    table_time = ax_time.table(
+        cellText=table_data_time,
+        loc='center',
+        cellLoc='center'
+    )
+    ax_time.set_title("Execution Time Summary", pad=10)
+    table_time.set_fontsize(10)
+    table_time.scale(1, 1.5)
+    fig_time.tight_layout()
+    plt.show()
+
+    # memory part
+    fig_mem, ax_mem = plt.subplots(figsize=(7, 3))
+    ax_mem.axis("off")
+
+    header_mem = ["Method"] + ["n = " + str(n) for n in n_values]
+    table_data_mem = [header_mem]
+
+    for method in memory_table.keys():
+        row = [method]
+        for n in n_values:
+            row.append(f"{memory_table[method][n]:.2f}")
+        table_data_mem.append(row)
+
+    table_mem = ax_mem.table(
+        cellText=table_data_mem,
+        loc='center',
+        cellLoc='center'
+    )
+    ax_mem.set_title("Peak Memory Summary (MB)", pad=10)
+    table_mem.set_fontsize(10)
+    table_mem.scale(1, 1.5)
+    fig_mem.tight_layout()
+    plt.show()
+
 
 def plot_benchmarks(n_values=None):
     # draw bar plot
     if n_values is None:
-        n_values = [100_000, 500_000, 1_000_000]
+        n_values = [100_000, 500_000, 1_000_000, 5_000_000]
+
     methods = {
         "Eratosthenes": sieve_of_eratosthenes,
         "Sundaram": sieve_of_sundaram,
         "Atkin": sieve_of_atkin,
-        "Miller-Rabin": generate_primes_miller_rabin
+        "Miller-Rabin": generate_primes_miller_rabin,
+        "TrialDiv": trial_division
     }
 
-    results = {method: [] for method in methods}
+    # time and memory to be stored separately
+    time_results = {m: [] for m in methods}
+    mem_results = {m: [] for m in methods}
 
     for n in n_values:
         for method_name, method_func in methods.items():
-            exec_time, _, _ = measure_time_and_peak_memory(method_func, n)
-            results[method_name].append(exec_time)
+            exec_time, peak_mem, _ = measure_time_and_peak_memory(method_func, n)
+            time_results[method_name].append(exec_time)
+            mem_results[method_name].append(peak_mem)
 
-    # plot arrangement
-    bar_width = 0.2
+    # first figure for Time
+    plt.figure(figsize=(8, 6))
+    bar_width = 0.12
     x_positions = range(len(n_values))
 
-    plt.figure(figsize=(10, 6))
-
-    for i, (method_name, times) in enumerate(results.items()):
+    for i, (method_name, times) in enumerate(time_results.items()):
         offsets = [x + (i * bar_width) for x in x_positions]
         plt.bar(offsets, times, width=bar_width, label=method_name)
 
@@ -207,7 +292,21 @@ def plot_benchmarks(n_values=None):
 
     plt.xlabel("n")
     plt.ylabel("Time (sec)")
-    plt.title("Comparison of Prime Generation Algorithms")
+    plt.title("Execution Time Comparison")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # second figure for Memory Consumption
+    plt.figure(figsize=(8, 6))
+    for i, (method_name, mem_vals) in enumerate(mem_results.items()):
+        offsets = [x + (i * bar_width) for x in x_positions]
+        plt.bar(offsets, mem_vals, width=bar_width, label=method_name)
+
+    plt.xticks(mid_positions, [str(n) for n in n_values])
+    plt.xlabel("n")
+    plt.ylabel("Peak Memory (MB)")
+    plt.title("Memory Usage Comparison")
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -215,6 +314,6 @@ def plot_benchmarks(n_values=None):
 
 # start
 if __name__ == "__main__":
-    N_VALUES = [100_000, 500_000, 1_000_000]
+    N_VALUES = [100_000, 500_000, 1_000_000, 5_000_000]
     compare_algorithms(N_VALUES)
     plot_benchmarks(N_VALUES)
